@@ -584,6 +584,8 @@ INT UtThreadState(HANDLE thread){
 VOID UtSwitchTo(HANDLE threadToRun){
 	if (((PUTHREAD)threadToRun)->State == Ready){
 		//inserir esta thread a cabeça da lista ready e fazer yield sobre sobre anterior!?
+		RunningThread->State = Ready;
+		((PUTHREAD)threadToRun)->State = Run;
 		ContextSwitch(RunningThread, (PUTHREAD)threadToRun);
 	}
 	return;

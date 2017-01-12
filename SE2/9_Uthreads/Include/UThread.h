@@ -105,6 +105,9 @@ VOID UtSwitchTo(HANDLE threadToRun);
 UTHREAD_API
 BOOL UtMultJoin(HANDLE handle[], int size );
 
+UTHREAD_API
+BOOL UtAlive(HANDLE thread);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
