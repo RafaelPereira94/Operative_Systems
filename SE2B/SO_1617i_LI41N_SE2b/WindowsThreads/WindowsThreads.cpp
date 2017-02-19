@@ -21,7 +21,7 @@ DWORD main(DWORD argc, PCHAR argv[]) {
 
 unsigned __stdcall Thread_func(void *ArgList) {
 	int time = GetTickCount();
-	int count = *((PDWORD)ArgList);
+	int count = *(PDWORD)ArgList;
 	for (int i = 0;i <1234567;++i)
 		count++;
 

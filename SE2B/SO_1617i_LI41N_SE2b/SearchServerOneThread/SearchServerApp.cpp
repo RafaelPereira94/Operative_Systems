@@ -3,15 +3,29 @@
 #include <stdio.h>
 #include <assert.h>
 #include "SearchService.h"
+#include "SearchServerApp.h"
 
 static PSearchService service;
+
 
 /*-----------------------------------------------------------------------
 This function allows the processing of a selected set of files in a directory
 It uses the Windows functions for directory file iteration, namely
 "FindFirstFile" and "FindNextFile"
 */
-VOID processEntry(PCHAR path, PEntry entry) {
+UINT _stdcall processEntry(LPVOID args) {
+	//VOID _stdcall processEntry(PCHAR path, PEntry entry)
+	
+	DWORD numCpus = 0;
+	SYSTEM_INFO si;
+	GetSystemInfo(&si);
+	numCpus = si.dwNumberOfProcessors; //numero de cpus
+
+	PROCESSENTRY *cts = (PPROCESSENTRY)args; //argumentos passados a cada thread.
+	PCHAR path = cts->path;
+	PEntry entry = (PEntry) malloc(sizeof(Entry));
+	memcpy(entry, cts->entry, sizeof(Entry)); //senao threads trabalham com o mesmo entry
+
 	HANDLE iterator;
 	WIN32_FIND_DATA fileData;
 	TCHAR buffer[MAX_PATH];		// auxiliary buffer
@@ -76,11 +90,14 @@ VOID processEntry(PCHAR path, PEntry entry) {
 
 	FindClose(iterator);
 	HeapFree(GetProcessHeap(), 0, windowBuffer);
+	
+	free(entry);
 
+	return 0;
 
 error:
 	;
-
+	return 1;
 }
 
 INT main(DWORD argc, PCHAR argv[]) {
@@ -109,8 +126,13 @@ INT main(DWORD argc, PCHAR argv[]) {
 		res = SearchGet(service, &entry);
 		if (res == FALSE)
 			break;
+		PPROCESSENTRY cts = (PROCESSENTRY*) malloc(sizeof(PROCESSENTRY));
+		cts->path = path;
+		cts->entry = &entry;
 
-		processEntry(path, &entry);
+		_beginthreadex(NULL,0,processEntry,cts, 0, NULL); 
+
+		//processEntry(path, &entry);
 	}
 	//for (int i = 0; i < MAX_SERVERS; i++) {
 	//	threads[i] = (HANDLE)_beginthreadex(NULL, 0, server_thread, (LPVOID)i, 0, NULL);

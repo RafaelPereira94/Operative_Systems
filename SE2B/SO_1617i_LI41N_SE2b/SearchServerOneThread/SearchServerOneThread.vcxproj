@@ -13,6 +13,9 @@
   <ItemGroup>
     <ClCompile Include="SearchServerApp.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="SearchServerApp.h" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{758C7027-B500-469A-AEF2-BCCAA47C2AE1}</ProjectGuid>
     <RootNamespace>SearchServerOneThread</RootNamespace>
