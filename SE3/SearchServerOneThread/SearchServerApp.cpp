@@ -30,9 +30,21 @@ typedef struct aio_oper {
 	CHAR   filename[MAX_PATH];		// Hold temporary filename
 	HANDLE file;					// Hold file handle in search process
 	CHAR  buffer[MAX_WINDOW];		// Hold bytes read from file
+	CHAR  secondbuffer[MAX_WINDOW];
 	OVERLAPPED ov;
 	PSEARCH_SESSION searchSession;
 } SEARCH_OPER, * PSEARCH_OPER;
+
+VOID cb(struct _aio_dev* aiodev, INT transferedBytes, LPVOID ctx)
+{
+	PSEARCH_OPER op = (PSEARCH_OPER)ctx;
+
+	if (transferedBytes <= 0)
+		SearchSessionProcessNextFile(&op->ov);
+	else
+		//SearchSessionProcessCurrentFile(ovr, bytesRead);
+		SearchSessionProcessCurrentFile(&op->ov, transferedBytes);
+}
 
 PSEARCH_OPER SearchSessionOperationNew(HANDLE file, PCHAR filename, PSEARCH_SESSION session) {
 	PSEARCH_OPER oper = (PSEARCH_OPER)malloc(sizeof(SEARCH_OPER));
@@ -43,7 +55,11 @@ PSEARCH_OPER SearchSessionOperationNew(HANDLE file, PCHAR filename, PSEARCH_SESS
 	ZeroMemory(oper->buffer, sizeof(oper->buffer));
 	strcpy_s(oper->filename, sizeof(oper->filename), filename);
 	session->operationsInProgress += 1; // Increment number of operations in progess
-	CompletionPortAssociateHandle(file, session); // the second argument IS NOT an issue
+	//CompletionPortAssociateHandle(file, session); // the second argument IS NOT an issue
+	PAIO_DEV paio = (PAIO_DEV)malloc(sizeof(AIO_DEV));
+	InitAioDev(paio, file, false);
+	SetAioOper(paio, cb, oper); //associa cb
+
 	oper->file = file;
 
 	return oper;
@@ -83,6 +99,7 @@ VOID SearchSessionTerminate(PSEARCH_SESSION session) {
 	free(entry);
 	free(session);
 }
+
 
 // Returns first file in repository if exists. Return false if there are no files in repository.
 BOOL GetFirstFile(PCHAR path, _Out_ HANDLE * repositoryIterator, _Out_ HANDLE * file, _Out_ PWIN32_FIND_DATA fileData) {
@@ -162,8 +179,14 @@ VOID SearchSessionProcessNextFile(LPOVERLAPPED ovr) {
 		strcpy_s(oper->filename, sizeof(oper->filename), findData.cFileName);
 		// associate next file to iocp
 		CompletionPortAssociateHandle(oper->file, session); // the second argument IS NOT an issue for this implementation
+		
+		PAIO_DEV piov = (PAIO_DEV)malloc(sizeof(_aio_dev));
+		InitAioDev(piov, oper, false);
+		
+		res = ReadAsync(piov, oper->buffer, MAX_WINDOW, cb,oper);
+
 		// place first read
-		res = ReadFile(oper->file, oper->buffer, MAX_WINDOW, &dummy, &oper->ov);
+		//res = ReadFile(oper->file, oper->buffer, MAX_WINDOW, &dummy, &oper->ov);
 		assert(res == false && GetLastError() == ERROR_IO_PENDING);
 
 		return;
@@ -186,9 +209,13 @@ VOID SearchSessionProcessCurrentFile(LPOVERLAPPED ovr, DWORD transferredBytes) {
 	PSEARCH_OPER oper = CONTAINING_RECORD(ovr, SEARCH_OPER, ov);
 	PSEARCH_SESSION session = oper->searchSession;
 	PEntry entry = session->req;
+	
+	CHAR c[MAX_WINDOW*2];
+	memcpy(c, oper->buffer, MAX_WINDOW);
+	memcpy(&c[MAX_WINDOW], oper->secondbuffer, MAX_WINDOW);
 
 	// search for an occurrence
-	oper->buffer[transferredBytes] = 0;
+	//oper->buffer[transferredBytes] = 0;
 	PCHAR res = strstr(oper->buffer, entry->value);
 	if (res != NULL) {
 		// register current filename and go to next file if get an occurrence
@@ -200,6 +227,11 @@ VOID SearchSessionProcessCurrentFile(LPOVERLAPPED ovr, DWORD transferredBytes) {
 		return;
 	}
 
+	if(oper->secondbuffer[0] != NULL)
+	{
+		_memccpy(oper->buffer,oper->secondbuffer,NULL,MAX_WINDOW);
+	}
+
 	// not found! read next chunck of bytes
 	LARGE_INTEGER pos;
 	DWORD dummy;
@@ -207,7 +239,7 @@ VOID SearchSessionProcessCurrentFile(LPOVERLAPPED ovr, DWORD transferredBytes) {
 	pos.QuadPart += transferredBytes;
 	ovr->OffsetHigh = pos.HighPart; ovr->Offset = pos.LowPart;
 	// place next read
-	BOOL res1 = ReadFile(oper->file, oper->buffer, MAX_WINDOW, &dummy, ovr);
+	BOOL res1 = ReadFile(oper->file, oper->secondbuffer, MAX_WINDOW, &dummy, ovr);
 	assert(res1 == false && GetLastError() == ERROR_IO_PENDING);
 
 
@@ -249,17 +281,6 @@ VOID processEntry(PCHAR path, PEntry entry) {
 		assert(res == false && GetLastError() == ERROR_IO_PENDING);
 	}
 
-}
-
-VOID processOpersCallback(PAIO_DEV aiodev,INT transferedBytes,LPVOID ctx)
-{
-	PSEARCH_OPER op = (PSEARCH_OPER)ctx;
-	
-	if (transferedBytes <= 0)
-		SearchSessionProcessNextFile(ovr);
-	else
-		//SearchSessionProcessCurrentFile(ovr, bytesRead);
-		SearchSessionProcessCurrentFile(ovr, transferedBytes);
 }
 
 INT main(DWORD argc, PCHAR argv[]) {
