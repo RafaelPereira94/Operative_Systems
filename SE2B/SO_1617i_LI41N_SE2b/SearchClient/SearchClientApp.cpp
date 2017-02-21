@@ -67,7 +67,5 @@ INT main(DWORD argc, PCHAR argv[]) {
 	printf("Client app: Close service name = %s\n", name);
 	SearchClose(service);
 
-	getchar();
-
 	return 0;
 }
