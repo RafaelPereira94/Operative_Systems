@@ -1,0 +1,11 @@
+Struct.jpg contem o esquema do serviço.
+
+P:Explique como é suportada a sinalização do cliente por parte do servidor que a pesquisa por ele (cliente) colocada
+foi concluída.
+R:Primeiramente o cliente coloca um pedido numa tabela de pedidos e o semáforo
+sinaliza a existência de um pedido, de seguida o servidor processa o pedido e através do metodo
+searchPut coloca a resposta ao pedido do cliente num ringbuffer sinalizando o cliente que já foi
+processado o seu pedido.O cliente por fim chama searchGet obtendo do ringbuffer a resposta.
+
+Exercicio c e d encontram-se em anexo.
+
